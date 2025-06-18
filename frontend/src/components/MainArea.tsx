@@ -160,22 +160,30 @@ const MainArea: React.FC<MainAreaProps> = ({ selectedHistory, setSelectedHistory
     try {
       const es = getStreamEventSource(historyId, input, llmConfig, selectedModel!, selectedProviderId!);
       let aiContent = "";
-      es.onopen = () => {
-        console.log('SSE connection opened');
-      };
       es.onmessage = (event) => {
         console.log('SSE onmessage:', event.data);
         if (event.data === "[DONE]") {
           es.close();
+          console.log('SSE closed on [DONE]');
           return;
         }
         try {
           const payload = JSON.parse(event.data);
-          const delta = payload.choices?.[0]?.delta?.content || "";
+          const delta = payload.choices?.[0]?.delta?.content ?? payload.choices?.[0]?.content ?? "";
           aiContent += delta;
-          setMessages(msgs =>
-            msgs.map(m => m.id === aiMsgId ? { ...m, content: aiContent } : m)
-          );
+          console.log('AI流式累计内容:', aiContent);
+          // 始终更新最后一条AI消息内容，确保流式渲染
+          setMessages(msgs => {
+            const lastAiIdx = [...msgs].reverse().findIndex(m => m.sender === "ai");
+            if (lastAiIdx === -1) {
+              console.log('未找到AI消息占位符');
+              return msgs;
+            }
+            const idx = msgs.length - 1 - lastAiIdx;
+            const newMsgs = msgs.map((m, i) => i === idx ? { ...m, content: aiContent } : m);
+            console.log('setMessages更新:', newMsgs);
+            return newMsgs;
+          });
         } catch (e) {
           console.error("Error parsing SSE message:", e, event.data);
         }

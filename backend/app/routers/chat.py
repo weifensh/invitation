@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, Query, Header
+from fastapi import APIRouter, Depends, HTTPException, Query, Header, BackgroundTasks
 from sqlalchemy.orm import Session
 from fastapi.security import OAuth2PasswordBearer
 from .. import models, schemas, database, auth
@@ -7,6 +7,7 @@ from datetime import datetime
 import requests
 from fastapi.responses import StreamingResponse
 import json
+from ..database import SessionLocal
 
 router = APIRouter()
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/auth/login")
@@ -97,7 +98,8 @@ def list_messages(
     temperature: float = Query(0.7),
     max_tokens: int = Query(2048),
     db: Session = Depends(database.get_db),
-    user: models.User = Depends(get_token_from_header_or_query)
+    user: models.User = Depends(get_token_from_header_or_query),
+    background_tasks: BackgroundTasks = None
 ):
     db_history = db.query(models.ChatHistory).filter(models.ChatHistory.id == history_id, models.ChatHistory.user_id == user.id).first()
     if not db_history:
@@ -106,7 +108,6 @@ def list_messages(
     if not stream:
         return db.query(models.ChatMessage).filter(models.ChatMessage.history_id == history_id).order_by(models.ChatMessage.created_at).all()
 
-    # 只提取用到的字段，避免ORM对象失效
     provider_obj = db.query(models.ModelProvider).filter(models.ModelProvider.id == provider_id).first()
     model_obj = db.query(models.Model).filter(models.Model.id == model_id).first()
     if not provider_obj or not model_obj:
@@ -120,14 +121,16 @@ def list_messages(
         "name": model_obj.name
     }
 
-    # 1. 存储用户消息
     db_message = models.ChatMessage(sender=sender, content=content, history_id=history_id)
     db.add(db_message)
     db_history.updated_at = db_message.created_at
     db.commit()
     db.refresh(db_message)
 
+    ai_reply_holder = {"reply": ""}
+
     def event_stream():
+        ai_reply = ""
         try:
             api_host = provider["api_host"].rstrip("/")
             url = f"{api_host}/v1/chat/completions"
@@ -143,17 +146,43 @@ def list_messages(
             with requests.post(url, headers=headers, json=data, stream=True, timeout=120) as resp:
                 for line in resp.iter_lines():
                     if line:
-                        print("[SSE] yield:", line)
                         line = line.decode('utf-8')
-                        if line.startswith('data: '):
-                            line = line[6:]
-                        # 只推送纯JSON字符串
-                        yield f"{line}\n\n" if line.strip() else ""
+                        if line.startswith('data:'):
+                            line = line[len('data:'):].lstrip()
+                        if line == '[DONE]':
+                            break
+                        try:
+                            payload = json.loads(line)
+                            delta = payload.get("choices", [{}])[0].get("delta", {}).get("content", "")
+                            ai_reply += delta
+                            print(f"[SSE] 累计AI delta: {delta}")
+                        except Exception as e:
+                            print(f"[SSE] delta解析异常: {e}, line={line}")
+                        # 关键：始终加data:前缀
+                        yield f"data: {line}\n\n"
         except Exception as e:
             print("[SSE] error:", e)
             yield f"data: {{\"error\": \"{str(e)}\"}}\n\n"
-        print("[SSE] yield: [DONE]")
+        print(f"[SSE] yield: [DONE], ai_reply=<{ai_reply}>")
         yield "data: [DONE]\n\n"
+        # --- 关键：流式结束后同步保存AI回复 ---
+        if ai_reply.strip():
+            print(f"[SSE] 保存AI消息到DB: {ai_reply}")
+            db_ai = SessionLocal()
+            try:
+                db_history2 = db_ai.query(models.ChatHistory).filter(models.ChatHistory.id == history_id).first()
+                db_reply = models.ChatMessage(sender="ai", content=ai_reply, history_id=history_id)
+                db_ai.add(db_reply)
+                db_history2.updated_at = db_reply.created_at
+                db_ai.commit()
+                db_ai.refresh(db_reply)
+            finally:
+                db_ai.close()
+        else:
+            print("[SSE] AI回复内容为空，不保存")
+
+    if background_tasks is not None:
+        background_tasks.add_task(event_stream)
 
     return StreamingResponse(
         event_stream(),
