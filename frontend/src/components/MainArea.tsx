@@ -66,10 +66,16 @@ const MainArea = ({ selectedHistory, setSelectedHistory }: MainAreaProps) => {
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
   const [isStreaming, setIsStreaming] = useState(false);
   const eventSourceRef = useRef<EventSource | null>(null);
+  const inputRef = useRef<any>(null);
 
   // 加载对话历史
   useEffect(() => {
-    getChatHistories().then(setHistories);
+    getChatHistories().then(hs => {
+      setHistories(hs);
+      if (hs.length > 0) {
+        setSelectedHistory(hs[0].id);
+      }
+    });
   }, []);
 
   // 选中对话后加载消息
@@ -99,6 +105,13 @@ const MainArea = ({ selectedHistory, setSelectedHistory }: MainAreaProps) => {
     // eslint-disable-next-line
     return undefined;
   }, [messages]);
+
+  // 聊天历史切换后自动聚焦输入框
+  useEffect(() => {
+    if (inputRef.current) {
+      inputRef.current.focus();
+    }
+  }, [selectedHistory]);
 
   // 加载模型提供商
   const fetchProviders = async () => {
@@ -518,6 +531,7 @@ const MainArea = ({ selectedHistory, setSelectedHistory }: MainAreaProps) => {
           <Button icon={<ToolOutlined />} style={{ marginRight: 8 }} />
         </Dropdown>
         <Input.TextArea
+          ref={inputRef}
           value={input}
           onChange={e => setInput(e.target.value)}
           autoSize={{ minRows: 1, maxRows: 4 }}
