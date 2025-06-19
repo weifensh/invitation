@@ -19,6 +19,8 @@ interface Message {
   id: number;
   sender: string;
   content: string;
+  reasoning_content?: string;
+  reasoning_done?: boolean;
 }
 
 interface Provider {
@@ -156,32 +158,53 @@ const MainArea: React.FC<MainAreaProps> = ({ selectedHistory, setSelectedHistory
   const fetchStreamLLMReply = async (input: string, historyId: number) => {
     // 插入AI占位符
     const aiMsgId = Date.now() + 1;
-    setMessages(msgs => [...msgs, { id: aiMsgId, sender: "ai", content: "" }]);
+    setMessages(msgs => [...msgs, { id: aiMsgId, sender: "ai", content: "", reasoning_content: "", reasoning_done: false }]);
     try {
       const es = getStreamEventSource(historyId, input, llmConfig, selectedModel!, selectedProviderId!);
       let aiContent = "";
+      let aiReasoning = "";
+      let reasoningDone = false;
       es.onmessage = (event) => {
         console.log('SSE onmessage:', event.data);
         if (event.data === "[DONE]") {
           es.close();
-          console.log('SSE closed on [DONE]');
+          reasoningDone = true;
+          // 标记reasoning_content已完成
+          setMessages(msgs => {
+            const lastAiIdx = [...msgs].reverse().findIndex(m => m.sender === "ai");
+            if (lastAiIdx === -1) return msgs;
+            const idx = msgs.length - 1 - lastAiIdx;
+            const newMsgs = msgs.map((m, i) => i === idx ? { ...m, reasoning_done: true } : m);
+            return newMsgs;
+          });
           return;
         }
         try {
           const payload = JSON.parse(event.data);
-          const delta = payload.choices?.[0]?.delta?.content ?? payload.choices?.[0]?.content ?? "";
-          aiContent += delta;
-          console.log('AI流式累计内容:', aiContent);
-          // 始终更新最后一条AI消息内容，确保流式渲染
+          // 处理reasoning_content
+          const deltaReasoning = payload.choices?.[0]?.delta?.reasoning_content ?? payload.choices?.[0]?.reasoning_content ?? "";
+          if (deltaReasoning) {
+            aiReasoning += deltaReasoning;
+          }
+          // 处理content
+          const deltaContent = payload.choices?.[0]?.delta?.content ?? payload.choices?.[0]?.content ?? "";
+          if (deltaContent) {
+            aiContent += deltaContent;
+          }
+          // 更新消息
           setMessages(msgs => {
             const lastAiIdx = [...msgs].reverse().findIndex(m => m.sender === "ai");
-            if (lastAiIdx === -1) {
-              console.log('未找到AI消息占位符');
-              return msgs;
-            }
+            if (lastAiIdx === -1) return msgs;
             const idx = msgs.length - 1 - lastAiIdx;
-            const newMsgs = msgs.map((m, i) => i === idx ? { ...m, content: aiContent } : m);
-            console.log('setMessages更新:', newMsgs);
+            const newMsgs = msgs.map((m, i) => {
+              if (i !== idx) return m;
+              return {
+                ...m,
+                reasoning_content: aiReasoning,
+                content: aiContent,
+                reasoning_done: reasoningDone || !!payload.choices?.[0]?.delta?.content // 一旦content开始输出，reasoning_done为true
+              };
+            });
             return newMsgs;
           });
         } catch (e) {
@@ -322,6 +345,7 @@ const MainArea: React.FC<MainAreaProps> = ({ selectedHistory, setSelectedHistory
   );
 
   const renderMarkdown = (content: string) => {
+    if (!content) return '';
     if (typeof marked.parse === 'function') {
       return marked.parse(content) as string;
     }
@@ -358,17 +382,54 @@ const MainArea: React.FC<MainAreaProps> = ({ selectedHistory, setSelectedHistory
           dataSource={messages}
           loading={loading}
           renderItem={msg => (
-            <List.Item style={{ justifyContent: msg.sender === "user" ? "flex-end" : "flex-start" }}>
-              <div
-                style={{
-                  background: msg.sender === "user" ? "#e6f7ff" : "#fff",
-                  border: "1px solid #eee",
-                  borderRadius: 8,
-                  padding: 12,
-                  maxWidth: 480
-                }}
-                dangerouslySetInnerHTML={{ __html: renderMarkdown(msg.content) }}
-              />
+            <List.Item style={{ justifyContent: msg.sender === 'user' ? 'flex-end' : 'flex-start' }}>
+              <div style={{ maxWidth: 480, width: '100%' }}>
+                {msg.sender === 'ai' && msg.reasoning_content && !msg.reasoning_done && (
+                  <div
+                    style={{
+                      background: '#fffbe6',
+                      border: '1px solid #ffe58f',
+                      borderRadius: 8,
+                      padding: 12,
+                      marginBottom: 8,
+                      fontStyle: 'italic',
+                      color: '#ad8b00',
+                    }}
+                  >
+                    <div style={{ fontWeight: 'bold', marginBottom: 6 }}>推理中...</div>
+                    <div dangerouslySetInnerHTML={{ __html: renderMarkdown(msg.reasoning_content) }} />
+                  </div>
+                )}
+                {msg.sender === 'ai' && msg.reasoning_content && msg.reasoning_done && msg.reasoning_content && (
+                  <div
+                    style={{
+                      background: '#fffbe6',
+                      border: '1px solid #ffe58f',
+                      borderRadius: 8,
+                      padding: 12,
+                      marginBottom: 8,
+                      fontStyle: 'italic',
+                      color: '#ad8b00',
+                    }}
+                  >
+                    <div style={{ fontWeight: 'bold', marginBottom: 6 }}>思考中...</div>
+                    <div dangerouslySetInnerHTML={{ __html: renderMarkdown(msg.reasoning_content) }} />
+                  </div>
+                )}
+                {(msg.sender !== 'ai' || (msg.sender === 'ai' && msg.content)) && (
+                  <div
+                    style={{
+                      background: msg.sender === 'user' ? '#e6f7ff' : '#fff',
+                      border: '1px solid #eee',
+                      borderRadius: 8,
+                      padding: 12,
+                      marginTop: msg.sender === 'ai' && msg.reasoning_content ? 0 : undefined,
+                      display: msg.sender === 'ai' && !msg.content ? 'none' : undefined,
+                    }}
+                    dangerouslySetInnerHTML={{ __html: renderMarkdown(msg.content) }}
+                  />
+                )}
+              </div>
             </List.Item>
           )}
         />
