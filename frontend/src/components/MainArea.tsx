@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from "react";
 import { Select, Button, Input, Modal, List, Dropdown, Menu, message as antdMessage, Form } from "antd";
-import { SettingOutlined, ToolOutlined, SendOutlined, PlusOutlined, DeleteOutlined } from "@ant-design/icons";
+import { SettingOutlined, ToolOutlined, SendOutlined, PlusOutlined, DeleteOutlined, StopOutlined } from "@ant-design/icons";
 import { getChatHistories, getChatMessages, sendChatMessage } from "../api/chat";
 import {
   getModelProviders,
@@ -64,6 +64,8 @@ const MainArea = ({ selectedHistory, setSelectedHistory }: MainAreaProps) => {
   const [llmConfig, setLlmConfig] = useState({ temperature: 0.7, max_tokens: 2048, stream: true });
   const [llmConfigLoading, setLlmConfigLoading] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
+  const [isStreaming, setIsStreaming] = useState(false);
+  const eventSourceRef = useRef<EventSource | null>(null);
 
   // 加载对话历史
   useEffect(() => {
@@ -72,6 +74,12 @@ const MainArea = ({ selectedHistory, setSelectedHistory }: MainAreaProps) => {
 
   // 选中对话后加载消息
   useEffect(() => {
+    // 切换历史前先停止流式输出
+    if (eventSourceRef.current) {
+      eventSourceRef.current.close();
+      eventSourceRef.current = null;
+      setIsStreaming(false);
+    }
     if (selectedHistory) {
       setLoading(true);
       getChatMessages(selectedHistory)
@@ -155,7 +163,7 @@ const MainArea = ({ selectedHistory, setSelectedHistory }: MainAreaProps) => {
     if (showTools) {
       providerForm.setFieldsValue(llmConfig);
     }
-  }, [showTools, llmConfig, providerForm]);
+  }, [showTools]);
 
   const handleSend = async () => {
     if (!input.trim() || !selectedHistory) return;
@@ -207,6 +215,8 @@ const MainArea = ({ selectedHistory, setSelectedHistory }: MainAreaProps) => {
     setMessages(msgs => [...msgs, { id: aiMsgId, sender: "ai", content: "", reasoning_content: "", reasoning_done: false }]);
     try {
       const es = getStreamEventSource(historyId, input, llmConfig, selectedModel!, selectedProviderId!);
+      eventSourceRef.current = es;
+      setIsStreaming(true);
       let aiContent = "";
       let aiReasoning = "";
       let reasoningDone = false;
@@ -214,6 +224,8 @@ const MainArea = ({ selectedHistory, setSelectedHistory }: MainAreaProps) => {
         console.log('SSE onmessage:', event.data);
         if (event.data === "[DONE]") {
           es.close();
+          eventSourceRef.current = null;
+          setIsStreaming(false);
           reasoningDone = true;
           // 标记reasoning_content已完成
           setMessages(msgs => {
@@ -260,6 +272,8 @@ const MainArea = ({ selectedHistory, setSelectedHistory }: MainAreaProps) => {
       es.onerror = async (error) => {
         console.error('SSE onerror:', error);
         es.close();
+        eventSourceRef.current = null;
+        setIsStreaming(false);
         setMessages(msgs => msgs.filter(m => m.id !== aiMsgId)); // 移除AI占位符
         antdMessage.warning('流式调用失败，尝试使用非流式调用');
         try {
@@ -276,6 +290,8 @@ const MainArea = ({ selectedHistory, setSelectedHistory }: MainAreaProps) => {
     } catch (e) {
       setMessages(msgs => msgs.filter(m => m.id !== aiMsgId));
       antdMessage.error(`LLM流式调用失败: ${e}`);
+      eventSourceRef.current = null;
+      setIsStreaming(false);
     }
   };
 
@@ -400,6 +416,14 @@ const MainArea = ({ selectedHistory, setSelectedHistory }: MainAreaProps) => {
     return marked(content) as string;
   };
 
+  const handleStopStream = () => {
+    if (eventSourceRef.current) {
+      eventSourceRef.current.close();
+      eventSourceRef.current = null;
+    }
+    setIsStreaming(false);
+  };
+
   return (
     <div style={{ height: "100vh", display: "flex", flexDirection: "column" }}>
       <div style={{ display: "flex", alignItems: "center", padding: 16, borderBottom: "1px solid #eee" }}>
@@ -502,9 +526,11 @@ const MainArea = ({ selectedHistory, setSelectedHistory }: MainAreaProps) => {
           onPressEnter={e => { if (!e.shiftKey) { e.preventDefault(); handleSend(); } }}
           disabled={!selectedHistory}
         />
-        <Button type="primary" icon={<SendOutlined />} onClick={handleSend} disabled={!selectedHistory}>
-          发送
-        </Button>
+        {llmConfig.stream && isStreaming ? (
+          <Button type="primary" icon={<StopOutlined />} onClick={handleStopStream} danger disabled={!selectedHistory} />
+        ) : (
+          <Button type="primary" icon={<SendOutlined />} onClick={handleSend} disabled={!selectedHistory} />
+        )}
       </div>
       <Modal
         title="配置模型提供商"
@@ -588,6 +614,7 @@ const MainArea = ({ selectedHistory, setSelectedHistory }: MainAreaProps) => {
           initialValues={llmConfig}
           onFinish={handleLlmConfigOk}
           style={{ maxWidth: 600, display: 'flex', flexWrap: 'wrap', gap: 16 }}
+          key={showTools ? JSON.stringify(llmConfig) : 'closed'}
         >
           <Form.Item name="temperature" label="Temperature" rules={[{ required: true }]}
             style={{ minWidth: 180 }}>
