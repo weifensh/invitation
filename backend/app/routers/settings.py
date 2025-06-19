@@ -21,7 +21,7 @@ def get_settings(db: Session = Depends(database.get_db), user: models.User = Dep
     settings = db.query(models.ChatSetting).filter(models.ChatSetting.user_id == user.id).first()
     if not settings:
         # 默认配置
-        settings = models.ChatSetting(user_id=user.id, temperature=1.0, max_tokens=2048, stream=False)
+        settings = models.ChatSetting(user_id=user.id, temperature=0.7, max_tokens=2048, stream=True)
         db.add(settings)
         db.commit()
         db.refresh(settings)

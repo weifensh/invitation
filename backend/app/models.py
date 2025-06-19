@@ -55,7 +55,7 @@ class ChatSetting(Base):
     __tablename__ = "chat_settings"
     id = Column(Integer, primary_key=True, index=True)
     user_id = Column(Integer, ForeignKey("users.id"))
-    temperature = Column(Float, default=1.0)
+    temperature = Column(Float, default=0.7)
     max_tokens = Column(Integer, default=2048)
-    stream = Column(Boolean, default=False)
+    stream = Column(Boolean, default=True)
     user = relationship("User", back_populates="settings")

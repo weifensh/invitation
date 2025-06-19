@@ -158,13 +158,14 @@ def list_messages(
                             print(f"[SSE] 累计AI delta: {delta}")
                         except Exception as e:
                             print(f"[SSE] delta解析异常: {e}, line={line}")
-                        # 关键：始终加data:前缀
-                        yield f"data: {line}\n\n"
+                        # 关键：始终加data:前缀，且确保为utf-8字节串
+                        yield f"data: {line}\n\n".encode("utf-8")
         except Exception as e:
             print("[SSE] error:", e)
-            yield f"data: {{\"error\": \"{str(e)}\"}}\n\n"
+            # 确保错误信息为utf-8字节串
+            yield f"data: {{\"error\": \"{str(e)}\"}}\n\n".encode("utf-8")
         print(f"[SSE] yield: [DONE], ai_reply=<{ai_reply}>")
-        yield "data: [DONE]\n\n"
+        yield "data: [DONE]\n\n".encode("utf-8")
         # --- 关键：流式结束后同步保存AI回复 ---
         if ai_reply.strip():
             print(f"[SSE] 保存AI消息到DB: {ai_reply}")
@@ -186,7 +187,7 @@ def list_messages(
 
     return StreamingResponse(
         event_stream(),
-        media_type="text/event-stream",
+        media_type="text/event-stream; charset=utf-8",
         headers={
             "Cache-Control": "no-cache",
             "Connection": "keep-alive",
@@ -215,7 +216,7 @@ def create_message(
 
     temperature = getattr(message, 'temperature', 0.7)
     max_tokens = getattr(message, 'max_tokens', 2048)
-    stream = getattr(message, 'stream', False)
+    stream = getattr(message, 'stream', True)
 
     # 1. 存储用户消息
     db_message = models.ChatMessage(sender=message.sender, content=message.content, history_id=history_id)

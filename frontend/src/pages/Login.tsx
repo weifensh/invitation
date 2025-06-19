@@ -25,8 +25,21 @@ const LoginPage: React.FC = () => {
       await register(values);
       antdMessage.success("注册成功，请登录");
       setTab("login");
-    } catch {
-      antdMessage.error("注册失败，用户名或邮箱可能已存在");
+    } catch (err: any) {
+      // 处理邮箱已存在的情况
+      console.log('[REGISTER ERROR]', err);
+      const msg = err?.response?.data?.detail || err?.message || '';
+      const status = err?.response?.status;
+      const errStr = (typeof err === 'string' ? err : (err?.toString?.() || ''));
+      if (
+        (typeof msg === 'string' && msg.toLowerCase().includes('email') && msg.toLowerCase().includes('exist')) ||
+        (status === 500 && typeof msg === 'string' && msg.includes('UNIQUE constraint failed: users.email')) ||
+        (typeof errStr === 'string' && errStr.includes('UNIQUE constraint failed: users.email'))
+      ) {
+        antdMessage.error("该邮箱已存在");
+      } else {
+        antdMessage.error("注册失败，用户名或邮箱可能已存在");
+      }
     }
     setLoading(false);
   };
@@ -34,33 +47,46 @@ const LoginPage: React.FC = () => {
   return (
     <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", background: "#f5f5f5" }}>
       <div style={{ width: 360, background: "#fff", padding: 32, borderRadius: 8, boxShadow: "0 2px 8px #eee" }}>
-        <Tabs activeKey={tab} onChange={setTab} centered>
-          <Tabs.TabPane tab="登录" key="login">
-            <Form onFinish={onLogin} layout="vertical">
-              <Form.Item name="username" label="用户名" rules={[{ required: true, message: "请输入用户名" }]}>
-                <Input />
-              </Form.Item>
-              <Form.Item name="password" label="密码" rules={[{ required: true, message: "请输入密码" }]}>
-                <Input.Password />
-              </Form.Item>
-              <Button type="primary" htmlType="submit" block loading={loading}>登录</Button>
-            </Form>
-          </Tabs.TabPane>
-          <Tabs.TabPane tab="注册" key="register">
-            <Form onFinish={onRegister} layout="vertical">
-              <Form.Item name="username" label="用户名" rules={[{ required: true, message: "请输入用户名" }]}>
-                <Input />
-              </Form.Item>
-              <Form.Item name="email" label="邮箱" rules={[{ required: true, type: "email", message: "请输入有效邮箱" }]}>
-                <Input />
-              </Form.Item>
-              <Form.Item name="password" label="密码" rules={[{ required: true, message: "请输入密码" }]}>
-                <Input.Password />
-              </Form.Item>
-              <Button type="primary" htmlType="submit" block loading={loading}>注册</Button>
-            </Form>
-          </Tabs.TabPane>
-        </Tabs>
+        <Tabs
+          activeKey={tab}
+          onChange={setTab}
+          centered
+          items={[
+            {
+              label: '登录',
+              key: 'login',
+              children: (
+                <Form onFinish={onLogin} layout="vertical">
+                  <Form.Item name="username" label="用户名" rules={[{ required: true, message: "请输入用户名" }]}> 
+                    <Input />
+                  </Form.Item>
+                  <Form.Item name="password" label="密码" rules={[{ required: true, message: "请输入密码" }]}> 
+                    <Input.Password />
+                  </Form.Item>
+                  <Button type="primary" htmlType="submit" block loading={loading}>登录</Button>
+                </Form>
+              )
+            },
+            {
+              label: '注册',
+              key: 'register',
+              children: (
+                <Form onFinish={onRegister} layout="vertical">
+                  <Form.Item name="username" label="用户名" rules={[{ required: true, message: "请输入用户名" }]}> 
+                    <Input />
+                  </Form.Item>
+                  <Form.Item name="email" label="邮箱" rules={[{ required: true, type: "email", message: "请输入有效邮箱" }]}> 
+                    <Input />
+                  </Form.Item>
+                  <Form.Item name="password" label="密码" rules={[{ required: true, message: "请输入密码" }]}> 
+                    <Input.Password />
+                  </Form.Item>
+                  <Button type="primary" htmlType="submit" block loading={loading}>注册</Button>
+                </Form>
+              )
+            }
+          ]}
+        />
       </div>
     </div>
   );
