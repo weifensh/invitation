@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { Select, Button, Input, Modal, List, Dropdown, Menu, message as antdMessage, Form } from "antd";
 import { SettingOutlined, ToolOutlined, SendOutlined, PlusOutlined, DeleteOutlined } from "@ant-design/icons";
 import { getChatHistories, getChatMessages, sendChatMessage } from "../api/chat";
@@ -41,8 +41,11 @@ interface MainAreaProps {
   setSelectedHistory: (id: number | null) => void;
 }
 
-const MainArea: React.FC<MainAreaProps> = ({ selectedHistory, setSelectedHistory }) => {
-  const [selectedModel, setSelectedModel] = useState<number | undefined>(undefined);
+const MainArea = ({ selectedHistory, setSelectedHistory }: MainAreaProps) => {
+  const [selectedModel, setSelectedModel] = useState<number | undefined>(() => {
+    const saved = localStorage.getItem('selectedModel');
+    return saved !== null && !isNaN(Number(saved)) ? Number(saved) : undefined;
+  });
   const [showProviderModal, setShowProviderModal] = useState(false);
   const [showTools, setShowTools] = useState(false);
   const [input, setInput] = useState("");
@@ -54,9 +57,13 @@ const MainArea: React.FC<MainAreaProps> = ({ selectedHistory, setSelectedHistory
   const [editingProvider, setEditingProvider] = useState<Provider | null>(null);
   const [providerForm] = Form.useForm();
   const [modelName, setModelName] = useState("");
-  const [selectedProviderId, setSelectedProviderId] = useState<number | undefined>(undefined);
+  const [selectedProviderId, setSelectedProviderId] = useState<number | undefined>(() => {
+    const saved = localStorage.getItem('selectedProviderId');
+    return saved !== null && !isNaN(Number(saved)) ? Number(saved) : undefined;
+  });
   const [llmConfig, setLlmConfig] = useState({ temperature: 0.7, max_tokens: 2048, stream: true });
   const [llmConfigLoading, setLlmConfigLoading] = useState(false);
+  const messagesEndRef = useRef<HTMLDivElement | null>(null);
 
   // 加载对话历史
   useEffect(() => {
@@ -76,13 +83,29 @@ const MainArea: React.FC<MainAreaProps> = ({ selectedHistory, setSelectedHistory
     }
   }, [selectedHistory]);
 
+  // 聊天主区域自动滚动到底部
+  useEffect(() => {
+    if (messagesEndRef.current) {
+      messagesEndRef.current.scrollIntoView({ behavior: 'smooth' });
+    }
+    // eslint-disable-next-line
+    return undefined;
+  }, [messages]);
+
   // 加载模型提供商
   const fetchProviders = async () => {
     try {
       const data = await getModelProviders();
       setProviders(data);
-      if (data.length > 0 && selectedProviderId === undefined) {
-        setSelectedProviderId(data[0].id);
+      if (data.length > 0) {
+        const saved = localStorage.getItem('selectedProviderId');
+        const savedId = saved !== null && !isNaN(Number(saved)) ? Number(saved) : undefined;
+        if (savedId && data.some((p: any) => p.id === savedId)) {
+          setSelectedProviderId(savedId);
+        } else {
+          setSelectedProviderId(data[0].id);
+          localStorage.setItem('selectedProviderId', String(data[0].id));
+        }
       }
     } catch {
       antdMessage.error("获取模型提供商失败");
@@ -98,9 +121,17 @@ const MainArea: React.FC<MainAreaProps> = ({ selectedHistory, setSelectedHistory
       const data = await getModels(providerId);
       setModels(data);
       if (data.length > 0) {
-        setSelectedModel(data[0].id);
+        const saved = localStorage.getItem('selectedModel');
+        const savedId = saved !== null && !isNaN(Number(saved)) ? Number(saved) : undefined;
+        if (savedId && data.some((m: any) => m.id === savedId)) {
+          setSelectedModel(savedId);
+        } else {
+          setSelectedModel(data[0].id);
+          localStorage.setItem('selectedModel', String(data[0].id));
+        }
       } else {
         setSelectedModel(undefined);
+        localStorage.removeItem('selectedModel');
       }
     } catch {
       antdMessage.error("获取模型失败");
@@ -357,7 +388,10 @@ const MainArea: React.FC<MainAreaProps> = ({ selectedHistory, setSelectedHistory
       <div style={{ display: "flex", alignItems: "center", padding: 16, borderBottom: "1px solid #eee" }}>
         <Select
           value={selectedProviderId}
-          onChange={id => setSelectedProviderId(Number(id))}
+          onChange={id => {
+            setSelectedProviderId(Number(id));
+            localStorage.setItem('selectedProviderId', String(id));
+          }}
           style={{ width: 180, marginRight: 8 }}
           placeholder="选择模型提供商"
         >
@@ -367,7 +401,10 @@ const MainArea: React.FC<MainAreaProps> = ({ selectedHistory, setSelectedHistory
         </Select>
         <Select
           value={selectedModel}
-          onChange={id => setSelectedModel(Number(id))}
+          onChange={id => {
+            setSelectedModel(Number(id));
+            localStorage.setItem('selectedModel', String(id));
+          }}
           style={{ width: 220, marginRight: 8 }}
           placeholder="选择模型"
         >
@@ -396,7 +433,7 @@ const MainArea: React.FC<MainAreaProps> = ({ selectedHistory, setSelectedHistory
                       color: '#ad8b00',
                     }}
                   >
-                    <div style={{ fontWeight: 'bold', marginBottom: 6 }}>推理中...</div>
+                    <div style={{ fontWeight: 'bold', marginBottom: 6 }}>思考中...</div>
                     <div dangerouslySetInnerHTML={{ __html: renderMarkdown(msg.reasoning_content) }} />
                   </div>
                 )}
@@ -412,7 +449,7 @@ const MainArea: React.FC<MainAreaProps> = ({ selectedHistory, setSelectedHistory
                       color: '#ad8b00',
                     }}
                   >
-                    <div style={{ fontWeight: 'bold', marginBottom: 6 }}>思考中...</div>
+                    <div style={{ fontWeight: 'bold', marginBottom: 6 }}>思考完成</div>
                     <div dangerouslySetInnerHTML={{ __html: renderMarkdown(msg.reasoning_content) }} />
                   </div>
                 )}
@@ -433,6 +470,7 @@ const MainArea: React.FC<MainAreaProps> = ({ selectedHistory, setSelectedHistory
             </List.Item>
           )}
         />
+        <div ref={messagesEndRef} />
       </div>
       <div style={{ padding: 16, borderTop: "1px solid #eee", display: "flex", alignItems: "center" }}>
         <Dropdown overlay={toolsMenu} trigger={["click"]}>
