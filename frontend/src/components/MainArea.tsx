@@ -167,20 +167,35 @@ const MainArea = ({ selectedHistory, setSelectedHistory }: MainAreaProps) => {
     const currentInput = input;
     setInput("");
 
+    // 立即本地插入用户消息
+    const userMsg = { id: Date.now(), sender: "user", content: currentInput };
+    setMessages(msgs => [...msgs, userMsg]);
     if (llmConfig.stream) {
-      // 立即本地插入用户消息
-      const userMsg = { id: Date.now(), sender: "user", content: currentInput };
-      setMessages(msgs => [...msgs, userMsg]);
       await fetchStreamLLMReply(currentInput, currentHistory);
     } else {
+      // 先插入AI占位符
+      const aiMsgId = Date.now() + 1;
+      setMessages(msgs => [...msgs, { id: aiMsgId, sender: "ai", content: "回复准备中，请稍候...", reasoning_content: "", reasoning_done: false }]);
       try {
         await sendMessage(currentHistory, currentInput, llmConfig, selectedModel!, selectedProviderId!);
         setLoading(true);
         getChatMessages(currentHistory)
-          .then(setMessages)
+          .then(serverMsgs => {
+            // 找到AI消息，替换最后一条AI消息内容
+            setMessages(msgs => {
+              const lastAiIdx = [...msgs].reverse().findIndex(m => m.sender === "ai");
+              if (lastAiIdx === -1) return msgs;
+              const idx = msgs.length - 1 - lastAiIdx;
+              // 取最新AI消息内容
+              const serverAiMsg = [...serverMsgs].reverse().find(m => m.sender === "ai");
+              if (!serverAiMsg) return msgs;
+              return msgs.map((m, i) => i === idx ? { ...m, ...serverAiMsg } : m);
+            });
+          })
           .catch(() => antdMessage.error("加载消息失败"))
           .finally(() => setLoading(false));
       } catch {
+        setMessages(msgs => msgs.filter(m => m.id !== aiMsgId));
         antdMessage.error("发送失败");
       }
     }
@@ -325,7 +340,9 @@ const MainArea = ({ selectedHistory, setSelectedHistory }: MainAreaProps) => {
       setEditingProvider(null);
       providerForm.resetFields();
       fetchProviders();
-    } catch {}
+    } catch (e: any) {
+      antdMessage.error(e?.message || "新增失败");
+    }
   };
   const handleProviderCancel = () => {
     setEditingProvider(null);
@@ -420,7 +437,7 @@ const MainArea = ({ selectedHistory, setSelectedHistory }: MainAreaProps) => {
           loading={loading}
           renderItem={msg => (
             <List.Item style={{ justifyContent: msg.sender === 'user' ? 'flex-end' : 'flex-start' }}>
-              <div style={{ maxWidth: 480, width: '100%' }}>
+              <div style={{ width: '100%' }}>
                 {msg.sender === 'ai' && msg.reasoning_content && !msg.reasoning_done && (
                   <div
                     style={{
@@ -519,7 +536,7 @@ const MainArea = ({ selectedHistory, setSelectedHistory }: MainAreaProps) => {
             />
           </div>
           <div style={{ flex: 1, borderLeft: "1px solid #eee", paddingLeft: 24 }}>
-            <Form form={providerForm} layout="vertical">
+            <Form form={providerForm} layout="vertical" onFinish={handleProviderOk}>
               <Form.Item name="name" label="名称" rules={[{ required: true, message: "请输入名称" }]}>
                 <Input />
               </Form.Item>
@@ -529,7 +546,7 @@ const MainArea = ({ selectedHistory, setSelectedHistory }: MainAreaProps) => {
               <Form.Item name="api_key" label="API Key" rules={[{ required: true, message: "请输入API Key" }]}>
                 <Input.Password />
               </Form.Item>
-              <Button type="primary" onClick={handleProviderOk} style={{ marginRight: 8 }}>保存</Button>
+              <Button type="primary" htmlType="submit" style={{ marginRight: 8 }}>保存</Button>
               <Button onClick={handleProviderCancel}>取消</Button>
             </Form>
             {editingProvider && (
