@@ -38,4 +38,9 @@ export async function sendChatMessage(historyId: number, sender: string, content
   });
   const res = await api.post(`/chat/histories/${historyId}/messages`, data);
   return res.data;
+}
+
+export async function generateChatTitle(content: string) {
+  const res = await api.post("/chat/generate_title", { content });
+  return res.data.title;
 } 

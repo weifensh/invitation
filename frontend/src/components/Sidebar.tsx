@@ -16,28 +16,14 @@ interface ChatHistory {
 interface SidebarProps {
   selectedHistory: number | null;
   setSelectedHistory: (id: number | null) => void;
+  histories: ChatHistory[];
+  fetchHistories: () => void;
+  loading: boolean;
 }
 
-const Sidebar: React.FC<SidebarProps> = ({ selectedHistory, setSelectedHistory }) => {
-  const [histories, setHistories] = useState<ChatHistory[]>([]);
+const Sidebar: React.FC<SidebarProps> = ({ selectedHistory, setSelectedHistory, histories, fetchHistories, loading }) => {
   const [editingId, setEditingId] = useState<number | null>(null);
   const [editTitle, setEditTitle] = useState("");
-  const [loading, setLoading] = useState(false);
-
-  const fetchHistories = async () => {
-    setLoading(true);
-    try {
-      const data = await getChatHistories();
-      setHistories(data);
-    } catch (e) {
-      antdMessage.error("获取对话历史失败");
-    }
-    setLoading(false);
-  };
-
-  useEffect(() => {
-    fetchHistories();
-  }, []);
 
   const handleEdit = (id: number, title: string) => {
     setEditingId(id);

@@ -296,3 +296,35 @@ def create_message(
         db.refresh(db_reply)
         print(f"[非流式] 存储 db_reply: id={db_reply.id}, content={db_reply.content}")
         return db_reply
+
+@router.post("/generate_title", response_model=schemas.GenerateTitleResponse)
+def generate_title(
+    req: schemas.GenerateTitleRequest,
+    db: Session = Depends(database.get_db),
+    user: models.User = Depends(get_token_from_header_or_query)
+):
+    # 获取用户的默认provider和model
+    provider = db.query(models.ModelProvider).first()
+    model = db.query(models.Model).first()
+    if not provider or not model:
+        raise HTTPException(status_code=400, detail="模型或供应商不存在")
+    api_host = provider.api_host.rstrip("/")
+    url = f"{api_host}/v1/chat/completions"
+    headers = {"Authorization": f"Bearer {provider.api_key}"}
+    prompt = f"请将如下内容归纳为一个标题，字数尽可能不超过20字，标题所用语言由对话语言而定，标题不要用引号包含。内容如下：{req.content}"
+    data = {
+        "model": model.name,
+        "messages": [
+            {"role": "user", "content": prompt}
+        ],
+        "temperature": 0.3,
+        "max_tokens": 40,
+        "stream": False
+    }
+    try:
+        resp = requests.post(url, headers=headers, json=data, timeout=30)
+        resp.raise_for_status()
+        reply = resp.json()["choices"][0]["message"]["content"].strip()
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"LLM调用失败: {e}")
+    return schemas.GenerateTitleResponse(title=reply)

@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from "react";
 import { Select, Button, Input, Modal, List, Dropdown, Menu, message as antdMessage, Form } from "antd";
 import type { InputRef } from 'antd';
 import { SettingOutlined, ToolOutlined, SendOutlined, PlusOutlined, DeleteOutlined, StopOutlined, UserOutlined, LogoutOutlined } from "@ant-design/icons";
-import { getChatHistories, getChatMessages, sendChatMessage } from "../api/chat";
+import { getChatHistories, getChatMessages, sendChatMessage, generateChatTitle, updateChatHistory } from "../api/chat";
 import {
   getModelProviders,
   createModelProvider,
@@ -40,9 +40,10 @@ interface Model {
 interface MainAreaProps {
   selectedHistory: number | null;
   setSelectedHistory: (id: number | null) => void;
+  fetchHistories: () => void;
 }
 
-const MainArea = ({ selectedHistory, setSelectedHistory }: MainAreaProps) => {
+const MainArea = ({ selectedHistory, setSelectedHistory, fetchHistories }: MainAreaProps) => {
   const [selectedModel, setSelectedModel] = useState<number | undefined>(() => {
     const saved = localStorage.getItem('selectedModel');
     const val = saved !== null && !isNaN(Number(saved)) ? Number(saved) : undefined;
@@ -295,6 +296,8 @@ const MainArea = ({ selectedHistory, setSelectedHistory }: MainAreaProps) => {
     const userMsg = { id: Date.now(), sender: "user", content: currentInput };
     setMessages(msgs => [...msgs, userMsg]);
     try {
+      // 判断是否为第一条消息
+      const isFirstMessage = messages.length === 0;
       if (llmConfig.stream) {
         await fetchStreamLLMReply(currentInput, currentHistory);
       } else {
@@ -324,6 +327,16 @@ const MainArea = ({ selectedHistory, setSelectedHistory }: MainAreaProps) => {
           antdMessage.error("发送失败");
         }
       }
+      // 发送完第一条消息后生成标题
+      if (isFirstMessage) {
+        try {
+          const title = await generateChatTitle(currentInput);
+          await updateChatHistory(currentHistory, title);
+          fetchHistories(); // 主动刷新Sidebar
+        } catch (e) {
+          antdMessage.warning("自动生成标题失败");
+        }
+      }
     } finally {
       setIsSending(false);
     }
@@ -341,7 +354,7 @@ const MainArea = ({ selectedHistory, setSelectedHistory }: MainAreaProps) => {
       let aiReasoning = "";
       let reasoningDone = false;
       es.onmessage = (event) => {
-        console.log('SSE onmessage:', event.data);
+        //console.log('SSE onmessage:', event.data);
         if (event.data === "[DONE]") {
           es.close();
           eventSourceRef.current = null;

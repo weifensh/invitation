@@ -85,3 +85,9 @@ class ChatSettingOut(ChatSettingBase):
     id: int
     class Config:
         orm_mode = True
+
+class GenerateTitleRequest(BaseModel):
+    content: str
+
+class GenerateTitleResponse(BaseModel):
+    title: str
