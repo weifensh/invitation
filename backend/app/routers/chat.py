@@ -135,9 +135,14 @@ def list_messages(
             api_host = provider["api_host"].rstrip("/")
             url = f"{api_host}/v1/chat/completions"
             headers = {"Authorization": f"Bearer {provider['api_key']}"}
+            # 组装历史消息
+            messages = []
+            for m in db.query(models.ChatMessage).filter(models.ChatMessage.history_id == history_id).order_by(models.ChatMessage.created_at):
+                role = "assistant" if m.sender == "ai" else "user"
+                messages.append({"role": role, "content": m.content})
             data = {
                 "model": model["name"],
-                "messages": [{"role": "user", "content": content}],
+                "messages": messages,
                 "temperature": temperature,
                 "max_tokens": max_tokens,
                 "stream": True,
@@ -231,9 +236,14 @@ def create_message(
                 api_host = provider.api_host.rstrip("/")
                 url = f"{api_host}/v1/chat/completions"
                 headers = {"Authorization": f"Bearer {provider.api_key}"}
+                # 组装历史消息
+                messages = []
+                for m in db.query(models.ChatMessage).filter(models.ChatMessage.history_id == history_id).order_by(models.ChatMessage.created_at):
+                    role = "assistant" if m.sender == "ai" else "user"
+                    messages.append({"role": role, "content": m.content})
                 data = {
                     "model": model.name,
-                    "messages": [{"role": "user", "content": message.content}],
+                    "messages": messages,
                     "temperature": temperature,
                     "max_tokens": max_tokens,
                     "stream": True,
@@ -251,9 +261,14 @@ def create_message(
             api_host = provider.api_host.rstrip("/")
             url = f"{api_host}/v1/chat/completions"
             headers = {"Authorization": f"Bearer {provider.api_key}"}
+            # 组装历史消息
+            messages = []
+            for m in db.query(models.ChatMessage).filter(models.ChatMessage.history_id == history_id).order_by(models.ChatMessage.created_at):
+                role = "assistant" if m.sender == "ai" else "user"
+                messages.append({"role": role, "content": m.content})
             data = {
                 "model": model.name,
-                "messages": [{"role": "user", "content": message.content}],
+                "messages": messages,
                 "temperature": temperature,
                 "max_tokens": max_tokens,
                 "stream": False,
