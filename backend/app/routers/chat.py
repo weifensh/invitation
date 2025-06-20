@@ -70,6 +70,9 @@ def update_history(
     if not db_history:
         raise HTTPException(status_code=404, detail="History not found")
     db_history.title = history.title
+    # 防御性修复：updated_at 不能为 None
+    if db_history.updated_at is None:
+        db_history.updated_at = datetime.utcnow()
     db.commit()
     db.refresh(db_history)
     return db_history
