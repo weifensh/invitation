@@ -423,7 +423,7 @@ const MainArea = ({ selectedHistory, setSelectedHistory }: MainAreaProps) => {
     selectedModel: number,
     selectedProviderId: number
   ) => {
-    await sendChatMessage(historyId, "user", message, selectedModel, selectedProviderId);
+    await sendChatMessage(historyId, "user", message, selectedModel, selectedProviderId, llmConfig.temperature, llmConfig.max_tokens, llmConfig.stream);
   };
 
   // 2. 流式消息发送
