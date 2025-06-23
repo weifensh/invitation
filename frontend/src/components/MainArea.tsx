@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import { Select, Button, Input, Modal, List, Dropdown, Menu, message as antdMessage, Form } from "antd";
 import type { InputRef } from 'antd';
-import { SettingOutlined, ToolOutlined, SendOutlined, PlusOutlined, DeleteOutlined, StopOutlined, UserOutlined, LogoutOutlined } from "@ant-design/icons";
+import { SettingOutlined, ToolOutlined, SendOutlined, PlusOutlined, DeleteOutlined, StopOutlined, UserOutlined, LogoutOutlined, GlobalOutlined } from "@ant-design/icons";
 import { getChatHistories, getChatMessages, sendChatMessage, generateChatTitle, updateChatHistory } from "../api/chat";
 import {
   getModelProviders,
@@ -15,6 +15,7 @@ import {
 import { getChatSettings, updateChatSettings } from "../api/settings";
 import { marked } from "marked";
 import { useNavigate } from "react-router-dom";
+import { useTranslation } from 'react-i18next';
 
 interface Message {
   id: number;
@@ -82,6 +83,8 @@ const MainArea = ({ selectedHistory, setSelectedHistory, fetchHistories }: MainA
   const navigate = useNavigate();
   const [isSending, setIsSending] = useState(false);
   const token = localStorage.getItem('token');
+  const { t, i18n } = useTranslation();
+  const [langMenuVisible, setLangMenuVisible] = useState(false);
 
   // 加载对话历史
   useEffect(() => {
@@ -536,7 +539,7 @@ const MainArea = ({ selectedHistory, setSelectedHistory, fetchHistories }: MainA
   const toolsMenu = (
     <Menu>
       <Menu.Item key="llm-config" onClick={() => setShowTools(true)}>
-        参数
+        {t('tools_menu_params')}
       </Menu.Item>
     </Menu>
   );
@@ -580,6 +583,16 @@ const MainArea = ({ selectedHistory, setSelectedHistory, fetchHistories }: MainA
     setSelectedModel(undefined);
   }, [token]);
 
+  // 语言切换菜单
+  const langMenu = (
+    <Menu
+      items={[
+        { key: 'zh', label: '简体中文', onClick: () => { i18n.changeLanguage('zh'); setLangMenuVisible(false); } },
+        { key: 'en', label: 'English', onClick: () => { i18n.changeLanguage('en'); setLangMenuVisible(false); } },
+      ]}
+    />
+  );
+
   return (
     <div style={{ height: "100vh", display: "flex", flexDirection: "column" }}>
       <div style={{ display: "flex", alignItems: "center", padding: 16, borderBottom: "1px solid #eee", position: 'relative' }}>
@@ -591,7 +604,7 @@ const MainArea = ({ selectedHistory, setSelectedHistory, fetchHistories }: MainA
             console.log('[USER] setSelectedProviderId:', id, 'localStorage now:', localStorage.getItem('selectedProviderId'));
           }}
           style={{ width: 180, marginRight: 8 }}
-          placeholder="选择模型提供商"
+          placeholder={t('provider')}
         >
           {providers.map(p => (
             <Select.Option key={p.id} value={p.id}>{p.name}</Select.Option>
@@ -605,27 +618,37 @@ const MainArea = ({ selectedHistory, setSelectedHistory, fetchHistories }: MainA
             console.log('[USER] setSelectedModel:', id, 'localStorage now:', localStorage.getItem('selectedModel'));
           }}
           style={{ width: 220, marginRight: 8 }}
-          placeholder="选择模型"
+          placeholder={t('model')}
         >
           {models.map(m => (
             <Select.Option key={m.id} value={m.id}>{m.name}</Select.Option>
           ))}
         </Select>
         <Button icon={<SettingOutlined />} style={{ marginRight: 8 }} onClick={() => setShowProviderModal(true)} />
+        <div style={{ position: 'absolute', right: 56, top: 0 }}>
+          <Dropdown
+            overlay={langMenu}
+            trigger={["click"]}
+            open={langMenuVisible}
+            onOpenChange={setLangMenuVisible}
+          >
+            <Button icon={<GlobalOutlined />} shape="circle" />
+          </Dropdown>
+        </div>
         <div style={{ position: 'absolute', right: 16, top: 0 }}>
           <Dropdown
             menu={{
               items: [
                 {
                   key: 'user',
-                  label: <span style={{ cursor: 'default', fontWeight: 'bold' }}>{userInfo?.username || 'User'}</span>,
+                  label: <span style={{ cursor: 'default', fontWeight: 'bold' }}>{userInfo?.username || t('user')}</span>,
                   disabled: true
                 },
                 { type: 'divider' },
                 {
                   key: 'logout',
                   icon: <LogoutOutlined />, 
-                  label: 'Logout',
+                  label: t('logout'),
                   onClick: handleLogout
                 }
               ]
@@ -657,7 +680,7 @@ const MainArea = ({ selectedHistory, setSelectedHistory, fetchHistories }: MainA
                       color: '#ad8b00',
                     }}
                   >
-                    <div style={{ fontWeight: 'bold', marginBottom: 6 }}>思考中...</div>
+                    <div style={{ fontWeight: 'bold', marginBottom: 6 }}>{t('reasoning')}</div>
                     <div dangerouslySetInnerHTML={{ __html: renderMarkdown(msg.reasoning_content) }} />
                   </div>
                 )}
@@ -673,7 +696,7 @@ const MainArea = ({ selectedHistory, setSelectedHistory, fetchHistories }: MainA
                       color: '#ad8b00',
                     }}
                   >
-                    <div style={{ fontWeight: 'bold', marginBottom: 6 }}>思考完成</div>
+                    <div style={{ fontWeight: 'bold', marginBottom: 6 }}>{t('reasoning_done')}</div>
                     <div dangerouslySetInnerHTML={{ __html: renderMarkdown(msg.reasoning_content) }} />
                   </div>
                 )}
@@ -706,7 +729,7 @@ const MainArea = ({ selectedHistory, setSelectedHistory, fetchHistories }: MainA
           onChange={e => setInput(e.target.value)}
           autoSize={{ minRows: 1, maxRows: 4 }}
           style={{ flex: 1, marginRight: 8 }}
-          placeholder="请输入消息..."
+          placeholder={t('input_placeholder')}
           onPressEnter={e => { if (!e.shiftKey) { e.preventDefault(); handleSend(); } }}
           disabled={!selectedHistory}
         />
@@ -717,7 +740,7 @@ const MainArea = ({ selectedHistory, setSelectedHistory, fetchHistories }: MainA
         )}
       </div>
       <Modal
-        title="配置模型提供商"
+        title={t('settings')}
         open={showProviderModal}
         onCancel={() => { setShowProviderModal(false); setEditingProvider(null); providerForm.resetFields(); }}
         footer={null}
@@ -726,15 +749,15 @@ const MainArea = ({ selectedHistory, setSelectedHistory, fetchHistories }: MainA
         <div style={{ display: "flex", gap: 32 }}>
           <div style={{ flex: 1 }}>
             <Button type="primary" icon={<PlusOutlined />} block style={{ marginBottom: 12 }} onClick={() => { setEditingProvider(null); providerForm.resetFields(); setTimeout(() => { nameInputRef.current?.focus(); }, 0); }}>
-              新增模型提供商
+              {t('add_provider')}
             </Button>
             <List
               dataSource={providers}
               renderItem={item => (
                 <List.Item
                   actions={[
-                    <Button size="small" onClick={() => handleEditProvider(item)}>编辑</Button>,
-                    <Button size="small" danger icon={<DeleteOutlined />} onClick={() => handleDeleteProvider(item.id)} />
+                    <Button size="small" onClick={() => handleEditProvider(item)}>{t('edit')}</Button>,
+                    <Button size="small" danger icon={<DeleteOutlined />} onClick={() => handleDeleteProvider(item.id)}>{t('delete')}</Button>
                   ]}
                 >
                   <div>
@@ -747,7 +770,7 @@ const MainArea = ({ selectedHistory, setSelectedHistory, fetchHistories }: MainA
           </div>
           <div style={{ flex: 1, borderLeft: "1px solid #eee", paddingLeft: 24 }}>
             <Form form={providerForm} layout="vertical" onFinish={handleProviderOk}>
-              <Form.Item name="name" label="名称" rules={[{ required: true, message: "请输入名称" }]}>
+              <Form.Item name="name" label={t('provider')} rules={[{ required: true, message: t('provider') }]}>
                 <Input ref={nameInputRef} />
               </Form.Item>
               <Form.Item name="api_host" label="API Host" rules={[{ required: true, message: "请输入API Host" }]}>
@@ -756,25 +779,25 @@ const MainArea = ({ selectedHistory, setSelectedHistory, fetchHistories }: MainA
               <Form.Item name="api_key" label="API Key" rules={[{ required: true, message: "请输入API Key" }]}>
                 <Input.Password />
               </Form.Item>
-              <Button type="primary" htmlType="submit" style={{ marginRight: 8 }}>保存</Button>
-              <Button onClick={handleProviderCancel}>取消</Button>
+              <Button type="primary" htmlType="submit" style={{ marginRight: 8 }}>{t('save')}</Button>
+              <Button onClick={handleProviderCancel}>{t('cancel')}</Button>
             </Form>
             {editingProvider && (
               <div style={{ marginTop: 32 }}>
-                <h4>模型管理</h4>
+                <h4>{t('add_model')}</h4>
                 <Input
-                  placeholder="新模型名称"
+                  placeholder={t('model_name')}
                   value={modelName}
                   onChange={e => setModelName(e.target.value)}
                   style={{ width: 180, marginRight: 8 }}
                 />
-                <Button type="primary" size="small" onClick={handleAddModel}>新增模型</Button>
+                <Button type="primary" size="small" onClick={handleAddModel}>{t('add_model')}</Button>
                 <List
                   dataSource={models}
                   renderItem={m => (
                     <List.Item
                       actions={[
-                        <Button size="small" danger icon={<DeleteOutlined />} onClick={() => handleDeleteModel(m.id)} />
+                        <Button size="small" danger icon={<DeleteOutlined />} onClick={() => handleDeleteModel(m.id)}>{t('delete')}</Button>
                       ]}
                     >
                       {m.name}
@@ -787,7 +810,7 @@ const MainArea = ({ selectedHistory, setSelectedHistory, fetchHistories }: MainA
         </div>
       </Modal>
       <Modal
-        title="参数"
+        title={t('params')}
         open={showTools}
         onCancel={() => setShowTools(false)}
         footer={null}
@@ -813,7 +836,7 @@ const MainArea = ({ selectedHistory, setSelectedHistory, fetchHistories }: MainA
             <Input type="checkbox" />
           </Form.Item>
           <Form.Item>
-            <Button type="primary" htmlType="submit" loading={llmConfigLoading}>保存</Button>
+            <Button type="primary" htmlType="submit" loading={llmConfigLoading}>{t('save')}</Button>
           </Form.Item>
         </Form>
       </Modal>

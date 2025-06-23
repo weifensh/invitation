@@ -1,20 +1,24 @@
 import React, { useState } from "react";
-import { Form, Input, Button, Tabs, message as antdMessage } from "antd";
+import { Form, Input, Button, Tabs, message as antdMessage, Dropdown, Menu } from "antd";
 import { login, register } from "../api/auth";
+import { useTranslation } from 'react-i18next';
+import { GlobalOutlined } from '@ant-design/icons';
 
 const LoginPage: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [tab, setTab] = useState("login");
+  const { t, i18n } = useTranslation();
+  const [langMenuVisible, setLangMenuVisible] = useState(false);
 
   const onLogin = async (values: any) => {
     setLoading(true);
     try {
       const res = await login(values);
       localStorage.setItem("token", res.access_token);
-      antdMessage.success("登录成功");
+      antdMessage.success(t('login_success'));
       window.location.href = "/";
     } catch {
-      antdMessage.error("登录失败，请检查用户名和密码");
+      antdMessage.error(t('login_fail'));
     }
     setLoading(false);
   };
@@ -23,7 +27,7 @@ const LoginPage: React.FC = () => {
     setLoading(true);
     try {
       await register(values);
-      antdMessage.success("注册成功，请登录");
+      antdMessage.success(t('register_success'));
       setTab("login");
     } catch (err: any) {
       // 处理邮箱已存在的情况
@@ -36,16 +40,43 @@ const LoginPage: React.FC = () => {
         (status === 500 && typeof msg === 'string' && msg.includes('UNIQUE constraint failed: users.email')) ||
         (typeof errStr === 'string' && errStr.includes('UNIQUE constraint failed: users.email'))
       ) {
-        antdMessage.error("该邮箱已存在");
+        antdMessage.error(t('email_exists'));
       } else {
-        antdMessage.error("注册失败，用户名或邮箱可能已存在");
+        antdMessage.error(t('register_fail'));
       }
     }
     setLoading(false);
   };
 
+  // 语言切换菜单
+  const langMenu = (
+    <Menu
+      items={[
+        { key: 'en', label: 'English', onClick: () => { i18n.changeLanguage('en'); setLangMenuVisible(false); } },
+        { key: 'zh', label: '简体中文', onClick: () => { i18n.changeLanguage('zh'); setLangMenuVisible(false); } },
+      ]}
+    />
+  );
+
+  React.useEffect(() => {
+    if (i18n.language !== 'en') {
+      i18n.changeLanguage('en');
+    }
+    // eslint-disable-next-line
+  }, []);
+
   return (
     <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", background: "#f5f5f5" }}>
+      <div style={{ position: 'fixed', right: 32, top: 32, zIndex: 10 }}>
+        <Dropdown
+          overlay={langMenu}
+          trigger={["click"]}
+          open={langMenuVisible}
+          onOpenChange={setLangMenuVisible}
+        >
+          <Button icon={<GlobalOutlined />} shape="circle" />
+        </Dropdown>
+      </div>
       <div style={{ width: 360, background: "#fff", padding: 32, borderRadius: 8, boxShadow: "0 2px 8px #eee" }}>
         <Tabs
           activeKey={tab}
@@ -53,35 +84,35 @@ const LoginPage: React.FC = () => {
           centered
           items={[
             {
-              label: '登录',
+              label: t('login'),
               key: 'login',
               children: (
                 <Form onFinish={onLogin} layout="vertical">
-                  <Form.Item name="username" label="用户名" rules={[{ required: true, message: "请输入用户名" }]}> 
+                  <Form.Item name="username" label={t('username')} rules={[{ required: true, message: t('input_username') }]}> 
                     <Input />
                   </Form.Item>
-                  <Form.Item name="password" label="密码" rules={[{ required: true, message: "请输入密码" }]}> 
+                  <Form.Item name="password" label={t('password')} rules={[{ required: true, message: t('input_password') }]}> 
                     <Input.Password />
                   </Form.Item>
-                  <Button type="primary" htmlType="submit" block loading={loading}>登录</Button>
+                  <Button type="primary" htmlType="submit" block loading={loading}>{t('login')}</Button>
                 </Form>
               )
             },
             {
-              label: '注册',
+              label: t('register'),
               key: 'register',
               children: (
                 <Form onFinish={onRegister} layout="vertical">
-                  <Form.Item name="username" label="用户名" rules={[{ required: true, message: "请输入用户名" }]}> 
+                  <Form.Item name="username" label={t('username')} rules={[{ required: true, message: t('input_username') }]}> 
                     <Input />
                   </Form.Item>
-                  <Form.Item name="email" label="邮箱" rules={[{ required: true, type: "email", message: "请输入有效邮箱" }]}> 
+                  <Form.Item name="email" label={t('email')} rules={[{ required: true, type: "email", message: t('input_email') }]}> 
                     <Input />
                   </Form.Item>
-                  <Form.Item name="password" label="密码" rules={[{ required: true, message: "请输入密码" }]}> 
+                  <Form.Item name="password" label={t('password')} rules={[{ required: true, message: t('input_password') }]}> 
                     <Input.Password />
                   </Form.Item>
-                  <Button type="primary" htmlType="submit" block loading={loading}>注册</Button>
+                  <Button type="primary" htmlType="submit" block loading={loading}>{t('register')}</Button>
                 </Form>
               )
             }
