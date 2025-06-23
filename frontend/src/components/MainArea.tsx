@@ -483,6 +483,8 @@ const MainArea = ({ selectedHistory, setSelectedHistory, fetchHistories }: MainA
   const handleEditProvider = (provider: Provider) => {
     setEditingProvider(provider);
     providerForm.setFieldsValue(provider);
+    fetchModels(provider.id);
+    setModelName("");
   };
   const handleDeleteProvider = async (id: number) => {
     try {
@@ -517,23 +519,24 @@ const MainArea = ({ selectedHistory, setSelectedHistory, fetchHistories }: MainA
 
   // Model 操作
   const handleAddModel = async () => {
-    if (!selectedProviderId || !modelName.trim()) return;
+    if (!editingProvider || !modelName.trim()) return;
     try {
-      await createModel({ provider_id: selectedProviderId, name: modelName });
+      await createModel({ provider_id: editingProvider.id, name: modelName });
       setModelName("");
-      fetchModels(selectedProviderId);
-      antdMessage.success("新增模型成功");
+      fetchModels(editingProvider.id);
+      antdMessage.success(t('add_model_success') || "新增模型成功");
     } catch {
-      antdMessage.error("新增模型失败");
+      antdMessage.error(t('add_model_fail') || "新增模型失败");
     }
   };
   const handleDeleteModel = async (id: number) => {
+    if (!editingProvider) return;
     try {
       await deleteModel(id);
-      fetchModels(selectedProviderId!);
-      antdMessage.success("删除模型成功");
+      fetchModels(editingProvider.id);
+      antdMessage.success(t('delete_model_success') || "删除模型成功");
     } catch {
-      antdMessage.error("删除模型失败");
+      antdMessage.error(t('delete_model_fail') || "删除模型失败");
     }
   };
 
