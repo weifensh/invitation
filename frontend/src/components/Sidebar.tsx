@@ -80,23 +80,25 @@ const Sidebar: React.FC<SidebarProps> = ({ selectedHistory, setSelectedHistory, 
       <Button type="primary" icon={<PlusOutlined />} block style={{ marginBottom: 16 }} onClick={handleNewChat}>
         {t('sidebar_new_chat')}
       </Button>
-      <List
-        dataSource={histories}
-        loading={loading}
-        renderItem={item => (
-          <List.Item
-            style={{ cursor: "pointer", display: "flex", alignItems: "center", background: selectedHistory === item.id ? "#e6f7ff" : undefined }}
-            actions={[
-              <Dropdown overlay={menu(item.id, item.title)} trigger={["hover"]} key="more">
-                <MoreOutlined style={{ fontSize: 18 }} />
-              </Dropdown>
-            ]}
-            onClick={() => setSelectedHistory(item.id)}
-          >
-            <span>{item.title}</span>
-          </List.Item>
-        )}
-      />
+      <div style={{ flex: 1, overflowY: 'auto', minHeight: 0 }}>
+        <List
+          dataSource={histories}
+          loading={loading}
+          renderItem={item => (
+            <List.Item
+              style={{ cursor: "pointer", display: "flex", alignItems: "center", background: selectedHistory === item.id ? "#e6f7ff" : undefined }}
+              actions={[
+                <Dropdown overlay={menu(item.id, item.title)} trigger={["hover"]} key="more">
+                  <MoreOutlined style={{ fontSize: 18 }} />
+                </Dropdown>
+              ]}
+              onClick={() => setSelectedHistory(item.id)}
+            >
+              <span>{item.title}</span>
+            </List.Item>
+          )}
+        />
+      </div>
       <Modal
         title={t('sidebar_edit_title')}
         open={editingId !== null}
