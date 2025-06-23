@@ -60,6 +60,7 @@ const MainArea = ({ selectedHistory, setSelectedHistory, fetchHistories }: MainA
   const [models, setModels] = useState<Model[]>([]);
   const [editingProvider, setEditingProvider] = useState<Provider | null>(null);
   const [providerForm] = Form.useForm();
+  const [llmConfigForm] = Form.useForm();
   const nameInputRef = useRef<InputRef | null>(null);
   const [modelName, setModelName] = useState("");
   const [selectedProviderId, setSelectedProviderId] = useState<number | undefined>(() => {
@@ -229,10 +230,10 @@ const MainArea = ({ selectedHistory, setSelectedHistory, fetchHistories }: MainA
 
   useEffect(() => {
     if (showTools) {
-      providerForm.setFieldsValue(llmConfig);
+      llmConfigForm.setFieldsValue(llmConfig);
       console.log('[DEBUG] showTools open, setFieldsValue', llmConfig);
     }
-  }, [showTools, llmConfig, providerForm]);
+  }, [showTools, llmConfig, llmConfigForm]);
 
   // 获取当前用户信息（假设token中有username，或可从后端获取）
   useEffect(() => {
@@ -341,9 +342,9 @@ const MainArea = ({ selectedHistory, setSelectedHistory, fetchHistories }: MainA
         try {
           let titlePrompt = currentInput;
           if (i18n.language === 'zh') {
-            titlePrompt = `请为下面这段对话生成一个简短的标题：${currentInput}`;
+            titlePrompt = `请为下面以下内容生成一个简短的标题：${currentInput}`;
           } else {
-            titlePrompt = `Generate a short English title for the following conversation: ${currentInput}`;
+            titlePrompt = `Generate a short title in English for the following content: ${currentInput}`;
           }
           const title = await generateChatTitle(titlePrompt);
           await updateChatHistory(currentHistory, title);
@@ -844,7 +845,7 @@ const MainArea = ({ selectedHistory, setSelectedHistory, fetchHistories }: MainA
         footer={null}
       >
         <Form
-          form={providerForm}
+          form={llmConfigForm}
           layout="inline"
           initialValues={llmConfig}
           onFinish={handleLlmConfigOk}
