@@ -39,5 +39,6 @@
   "sidebar_delete": "删除",
   "sidebar_delete_success": "删除成功",
   "sidebar_delete_fail": "删除失败",
-  "sidebar_new_chat_fail": "新建对话失败"
+  "sidebar_new_chat_fail": "新建对话失败",
+  "reply_preparing": "回复准备中，请稍候..."
 } 

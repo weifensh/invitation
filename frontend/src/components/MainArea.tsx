@@ -85,6 +85,7 @@ const MainArea = ({ selectedHistory, setSelectedHistory, fetchHistories }: MainA
   const token = localStorage.getItem('token');
   const { t, i18n } = useTranslation();
   const [langMenuVisible, setLangMenuVisible] = useState(false);
+  const [abortController, setAbortController] = useState<AbortController | null>(null);
 
   // 加载对话历史
   useEffect(() => {
@@ -287,7 +288,7 @@ const MainArea = ({ selectedHistory, setSelectedHistory, fetchHistories }: MainA
     if (isSending) return;
     if (!input.trim() || !selectedHistory) return;
     if (!selectedProviderId || !selectedModel) {
-      antdMessage.warning("请先选择模型供应商和模型");
+      antdMessage.warning(t('please_select_model_and_provider'));
       return;
     }
     setIsSending(true);
@@ -298,46 +299,51 @@ const MainArea = ({ selectedHistory, setSelectedHistory, fetchHistories }: MainA
     // 立即本地插入用户消息
     const userMsg = { id: Date.now(), sender: "user", content: currentInput };
     setMessages(msgs => [...msgs, userMsg]);
+    let localAbort: AbortController | null = null;
     try {
-      // 判断是否为第一条消息
       const isFirstMessage = messages.length === 0;
       if (llmConfig.stream) {
         await fetchStreamLLMReply(currentInput, currentHistory);
       } else {
         // 先插入AI占位符
         const aiMsgId = Date.now() + 1;
-        setMessages(msgs => [...msgs, { id: aiMsgId, sender: "ai", content: "回复准备中，请稍候...", reasoning_content: "", reasoning_done: false }]);
+        setMessages(msgs => [...msgs, { id: aiMsgId, sender: "ai", content: t('reply_preparing'), reasoning_content: "", reasoning_done: false }]);
         try {
-          await sendMessage(currentHistory, currentInput, llmConfig, selectedModel!, selectedProviderId!);
+          localAbort = new AbortController();
+          setAbortController(localAbort);
+          await sendMessage(currentHistory, currentInput, llmConfig, selectedModel!, selectedProviderId!, localAbort.signal);
           setLoading(true);
           getChatMessages(currentHistory)
             .then(serverMsgs => {
-              // 找到AI消息，替换最后一条AI消息内容
               setMessages(msgs => {
                 const lastAiIdx = [...msgs].reverse().findIndex(m => m.sender === "ai");
                 if (lastAiIdx === -1) return msgs;
                 const idx = msgs.length - 1 - lastAiIdx;
-                // 取最新AI消息内容
                 const serverAiMsg = [...serverMsgs].reverse().find(m => m.sender === "ai");
                 if (!serverAiMsg) return msgs;
                 return msgs.map((m, i) => i === idx ? { ...m, ...serverAiMsg } : m);
               });
             })
-            .catch(() => antdMessage.error("加载消息失败"))
+            .catch(() => antdMessage.error(t('load_message_fail')))
             .finally(() => setLoading(false));
-        } catch {
+        } catch (e: any) {
           setMessages(msgs => msgs.filter(m => m.id !== aiMsgId));
-          antdMessage.error("发送失败");
+          if (e.name === 'AbortError') {
+            antdMessage.warning(t('request_cancelled'));
+          } else {
+            antdMessage.error(t('send_fail'));
+          }
+        } finally {
+          setAbortController(null);
         }
       }
-      // 发送完第一条消息后生成标题
       if (isFirstMessage) {
         try {
           const title = await generateChatTitle(currentInput);
           await updateChatHistory(currentHistory, title);
-          fetchHistories(); // 主动刷新Sidebar
+          fetchHistories();
         } catch (e) {
-          antdMessage.warning("自动生成标题失败");
+          antdMessage.warning(t('auto_title_fail'));
         }
       }
     } finally {
@@ -437,9 +443,10 @@ const MainArea = ({ selectedHistory, setSelectedHistory, fetchHistories }: MainA
     message: string,
     llmConfig: { temperature: number; max_tokens: number; stream: boolean },
     selectedModel: number,
-    selectedProviderId: number
+    selectedProviderId: number,
+    signal?: AbortSignal
   ) => {
-    await sendChatMessage(historyId, "user", message, selectedModel, selectedProviderId, llmConfig.temperature, llmConfig.max_tokens, llmConfig.stream);
+    await sendChatMessage(historyId, "user", message, selectedModel, selectedProviderId, llmConfig.temperature, llmConfig.max_tokens, llmConfig.stream, signal);
   };
 
   // 2. 流式消息发送
@@ -593,6 +600,13 @@ const MainArea = ({ selectedHistory, setSelectedHistory, fetchHistories }: MainA
     />
   );
 
+  const handleStopNonStream = () => {
+    if (abortController) {
+      abortController.abort();
+      setAbortController(null);
+    }
+  };
+
   return (
     <div style={{ height: "100vh", display: "flex", flexDirection: "column" }}>
       <div style={{ display: "flex", alignItems: "center", padding: 16, borderBottom: "1px solid #eee", position: 'relative' }}>
@@ -733,10 +747,18 @@ const MainArea = ({ selectedHistory, setSelectedHistory, fetchHistories }: MainA
           onPressEnter={e => { if (!e.shiftKey) { e.preventDefault(); handleSend(); } }}
           disabled={!selectedHistory}
         />
-        {llmConfig.stream && isStreaming ? (
-          <Button type="primary" icon={<StopOutlined />} onClick={handleStopStream} danger disabled={!selectedHistory} />
+        {llmConfig.stream ? (
+          isStreaming ? (
+            <Button type="primary" icon={<StopOutlined />} onClick={handleStopStream} danger disabled={!selectedHistory} />
+          ) : (
+            <Button type="primary" icon={<SendOutlined />} onClick={handleSend} disabled={!selectedHistory} />
+          )
         ) : (
-          <Button type="primary" icon={<SendOutlined />} onClick={handleSend} disabled={!selectedHistory} />
+          isSending ? (
+            <Button type="primary" icon={<StopOutlined />} onClick={handleStopNonStream} danger disabled={!selectedHistory} />
+          ) : (
+            <Button type="primary" icon={<SendOutlined />} onClick={handleSend} disabled={!selectedHistory} />
+          )
         )}
       </div>
       <Modal

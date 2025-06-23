@@ -39,5 +39,6 @@
   "sidebar_delete": "Delete",
   "sidebar_delete_success": "Delete successful",
   "sidebar_delete_fail": "Delete failed",
-  "sidebar_new_chat_fail": "Failed to create new chat"
+  "sidebar_new_chat_fail": "Failed to create new chat",
+  "reply_preparing": "Reply preparing"
 } 

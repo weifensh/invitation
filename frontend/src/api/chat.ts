@@ -25,7 +25,7 @@ export async function getChatMessages(historyId: number) {
   return res.data;
 }
 
-export async function sendChatMessage(historyId: number, sender: string, content: string, model_id?: number, provider_id?: number, temperature?: number, max_tokens?: number, stream?: boolean) {
+export async function sendChatMessage(historyId: number, sender: string, content: string, model_id?: number, provider_id?: number, temperature?: number, max_tokens?: number, stream?: boolean, signal?: AbortSignal) {
   const message: any = { sender, content };
   if (typeof model_id === 'number') message.model_id = model_id;
   if (typeof provider_id === 'number') message.provider_id = provider_id;
@@ -36,7 +36,7 @@ export async function sendChatMessage(historyId: number, sender: string, content
   console.log('[sendChatMessage] POST /chat/histories/' + historyId + '/messages', {
     historyId, sender, content, model_id, provider_id, temperature, max_tokens, stream, data
   });
-  const res = await api.post(`/chat/histories/${historyId}/messages`, data);
+  const res = await api.post(`/chat/histories/${historyId}/messages`, data, signal ? { signal } : undefined);
   return res.data;
 }
 
