@@ -339,7 +339,13 @@ const MainArea = ({ selectedHistory, setSelectedHistory, fetchHistories }: MainA
       }
       if (isFirstMessage) {
         try {
-          const title = await generateChatTitle(currentInput);
+          let titlePrompt = currentInput;
+          if (i18n.language === 'zh') {
+            titlePrompt = `请为下面这段对话生成一个简短的标题：${currentInput}`;
+          } else {
+            titlePrompt = `Generate a short English title for the following conversation: ${currentInput}`;
+          }
+          const title = await generateChatTitle(titlePrompt);
           await updateChatHistory(currentHistory, title);
           fetchHistories();
         } catch (e) {
