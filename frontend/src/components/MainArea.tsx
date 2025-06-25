@@ -87,6 +87,7 @@ const MainArea = ({ selectedHistory, setSelectedHistory, fetchHistories }: MainA
   const { t, i18n } = useTranslation();
   const [langMenuVisible, setLangMenuVisible] = useState(false);
   const [abortController, setAbortController] = useState<AbortController | null>(null);
+  const [modelsForEditProvider, setModelsForEditProvider] = useState<Model[]>([]);
 
   // 加载对话历史
   useEffect(() => {
@@ -483,7 +484,7 @@ const MainArea = ({ selectedHistory, setSelectedHistory, fetchHistories }: MainA
   const handleEditProvider = (provider: Provider) => {
     setEditingProvider(provider);
     providerForm.setFieldsValue(provider);
-    fetchModels(provider.id);
+    fetchModelsForEditProvider(provider.id);
     setModelName("");
   };
   const handleDeleteProvider = async (id: number) => {
@@ -515,6 +516,8 @@ const MainArea = ({ selectedHistory, setSelectedHistory, fetchHistories }: MainA
   const handleProviderCancel = () => {
     setEditingProvider(null);
     providerForm.resetFields();
+    setShowProviderModal(false);
+    if (selectedProviderId) fetchModels(selectedProviderId);
   };
 
   // Model 操作
@@ -523,7 +526,7 @@ const MainArea = ({ selectedHistory, setSelectedHistory, fetchHistories }: MainA
     try {
       await createModel({ provider_id: editingProvider.id, name: modelName });
       setModelName("");
-      fetchModels(editingProvider.id);
+      fetchModelsForEditProvider(editingProvider.id);
       antdMessage.success(t('add_model_success') || "新增模型成功");
     } catch {
       antdMessage.error(t('add_model_fail') || "新增模型失败");
@@ -533,7 +536,7 @@ const MainArea = ({ selectedHistory, setSelectedHistory, fetchHistories }: MainA
     if (!editingProvider) return;
     try {
       await deleteModel(id);
-      fetchModels(editingProvider.id);
+      fetchModelsForEditProvider(editingProvider.id);
       antdMessage.success(t('delete_model_success') || "删除模型成功");
     } catch {
       antdMessage.error(t('delete_model_fail') || "删除模型失败");
@@ -614,6 +617,16 @@ const MainArea = ({ selectedHistory, setSelectedHistory, fetchHistories }: MainA
     if (abortController) {
       abortController.abort();
       setAbortController(null);
+    }
+  };
+
+  // 编辑区专用fetch
+  const fetchModelsForEditProvider = async (providerId: number) => {
+    try {
+      const data = await getModels(providerId);
+      setModelsForEditProvider(data);
+    } catch {
+      antdMessage.error("获取模型失败");
     }
   };
 
@@ -774,7 +787,7 @@ const MainArea = ({ selectedHistory, setSelectedHistory, fetchHistories }: MainA
       <Modal
         title={t('settings')}
         open={showProviderModal}
-        onCancel={() => { setShowProviderModal(false); setEditingProvider(null); providerForm.resetFields(); }}
+        onCancel={handleProviderCancel}
         footer={null}
         width={700}
       >
@@ -825,7 +838,7 @@ const MainArea = ({ selectedHistory, setSelectedHistory, fetchHistories }: MainA
                 />
                 <Button type="primary" size="small" onClick={handleAddModel}>{t('add_model')}</Button>
                 <List
-                  dataSource={models}
+                  dataSource={modelsForEditProvider}
                   renderItem={m => (
                     <List.Item
                       actions={[
