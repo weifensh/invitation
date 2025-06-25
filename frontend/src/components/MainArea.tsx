@@ -88,6 +88,8 @@ const MainArea = ({ selectedHistory, setSelectedHistory, fetchHistories }: MainA
   const [langMenuVisible, setLangMenuVisible] = useState(false);
   const [abortController, setAbortController] = useState<AbortController | null>(null);
   const [modelsForEditProvider, setModelsForEditProvider] = useState<Model[]>([]);
+  const [autoScroll, setAutoScroll] = useState(true);
+  const chatAreaRef = useRef<HTMLDivElement | null>(null);
 
   // 加载对话历史
   useEffect(() => {
@@ -117,14 +119,32 @@ const MainArea = ({ selectedHistory, setSelectedHistory, fetchHistories }: MainA
     }
   }, [selectedHistory]);
 
-  // 聊天主区域自动滚动到底部
+  // 聊天主区域自动滚动到底部（流式时用户主动滚动优先）
   useEffect(() => {
-    if (messagesEndRef.current) {
-      messagesEndRef.current.scrollIntoView({ behavior: 'smooth' });
+    if (!isStreaming || autoScroll) {
+      if (messagesEndRef.current) {
+        messagesEndRef.current.scrollIntoView({ behavior: 'smooth' });
+      }
     }
-    // eslint-disable-next-line
-    return undefined;
-  }, [messages]);
+  }, [messages, isStreaming, autoScroll]);
+
+  // 监听用户滚动
+  useEffect(() => {
+    const chatDiv = chatAreaRef.current;
+    if (!chatDiv) return;
+    const handleScroll = () => {
+      if (!isStreaming) return;
+      const { scrollTop, scrollHeight, clientHeight } = chatDiv;
+      // 距底部小于30px认为在底部
+      if (scrollHeight - scrollTop - clientHeight < 30) {
+        setAutoScroll(true);
+      } else {
+        setAutoScroll(false);
+      }
+    };
+    chatDiv.addEventListener('scroll', handleScroll);
+    return () => chatDiv.removeEventListener('scroll', handleScroll);
+  }, [isStreaming]);
 
   // 聊天历史切换后自动聚焦输入框
   useEffect(() => {
@@ -698,7 +718,7 @@ const MainArea = ({ selectedHistory, setSelectedHistory, fetchHistories }: MainA
           </Dropdown>
         </div>
       </div>
-      <div style={{ flex: 1, overflowY: "auto", padding: 24 }}>
+      <div ref={chatAreaRef} style={{ flex: 1, overflowY: "auto", padding: 24 }}>
         <List
           dataSource={messages}
           loading={loading}
